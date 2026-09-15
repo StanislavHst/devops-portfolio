@@ -61,7 +61,7 @@ code --install-extension editorconfig.editorconfig
 Призначення:
 
 | Розширення | Навіщо |
-|---|---|
+| --- | --- |
 | GitLens | історія змін, blame й авторство рядків у редакторі |
 | Docker | Dockerfile, Compose, контейнери та валідація |
 | YAML (Red Hat) | синтаксис і перевірка YAML за JSON Schema, зокрема GitHub Actions |
