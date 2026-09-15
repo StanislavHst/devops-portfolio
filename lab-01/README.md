@@ -224,3 +224,131 @@ ssh -T git@github.com
 gh api repos/StanislavHst/devops-portfolio/rulesets
 gh project list --owner StanislavHst
 ```
+
+## План усного захисту на чистому репозиторії
+
+Нижче — сценарій, який можна виконати послідовно за 10–15 хвилин. Перед захистом варто відкрити PowerShell, GitHub-репозиторій, Project і цей звіт в окремих вкладках.
+
+### 1. Показати, що середовище справді кероване
+
+```powershell
+git --version
+git config --list --global
+fnm --version
+fnm list
+fnm exec --using 22.23.2 node --version
+fnm exec --using 24.21.0 node --version
+uv --version
+uv run --python 3.14 python --version
+docker --version
+docker compose version
+```
+
+Що сказати: «Node і Python не прив’язані до однієї глобальної версії. `fnm` та `uv` дозволяють відтворити runtime конкретного проєкту. Файли `.node-version` і `.python-version` зберігають вибір у Git. Compose перевіряю командою з пробілом — це v2 plugin, а не застарілий окремий `docker-compose`».
+
+При перемиканні Node звернути увагу викладача на різні рядки `v22.23.2` і `v24.21.0`. Це прямий доказ, а не скріншот встановленого пакета.
+
+### 2. Пояснити Git-конфігурацію
+
+У виводі `git config --list --global` послідовно показати:
+
+- `user.name` / `user.email` — авторство та прив’язка contribution до verified GitHub email;
+- `init.defaultbranch=main` — стандартна назва першої гілки;
+- `core.autocrlf=true` — Windows checkout у CRLF, нормалізація коміту в LF;
+- `pull.rebase=true` — локальні коміти перевідтворюються над remote, без випадкових merge commits;
+- `core.editor=code --wait` — Git чекає завершення редагування повідомлення у VS Code.
+
+Важлива фраза: «`pull.rebase=true` не означає, що можна переписувати спільну історію. Я rebase-ю лише власні локальні коміти; `main` додатково захищений від force-push».
+
+### 3. Показати EditorConfig і schema validation
+
+Відкрити `.editorconfig`, `.vscode/settings.json` та `lab-01/assets/yaml-schema-error.png`.
+
+Що сказати: «`.editorconfig` — спільний контракт форматування незалежно від особистих налаштувань IDE. Окреме розширення EditorConfig потрібне, бо VS Code сам файл не застосовує. Red Hat YAML отримує GitHub Workflow JSON Schema зі settings і знаходить не лише синтаксичні, а й структурні помилки. На скріншоті YAML синтаксично читається, але поле `jobs` має неправильний тип — очікується object».
+
+### 4. Показати GitHub security
+
+```powershell
+ssh-keygen -lf $env:USERPROFILE\.ssh\id_ed25519.pub
+ssh -T git@github.com
+git remote -v
+```
+
+Відкрити GitHub **Settings → Password and authentication** і показати `Two-factor authentication: Enabled`, але не відкривати recovery codes. Потім **Settings → SSH and GPG keys** і показати доданий Ed25519 key.
+
+Що сказати: «Парольна фраза захищає приватний ключ у стані спокою. GitHub отримує лише `.pub`. Навіть якщо історію очистити після витоку приватного ключа, довіра не відновлюється — спочатку revoke, потім нова пара, аудит, і лише після цього cleanup історії».
+
+### 5. Створити тестовий репозиторій однією командою
+
+Назву краще зробити унікальною, щоб скрипт не зіткнувся зі старою демонстрацією:
+
+```powershell
+$demoRepository = "devops-portfolio-demo-$(Get-Date -Format yyyyMMdd-HHmm)"
+.\scripts\setup-repository.ps1 `
+  -Owner StanislavHst `
+  -Repository $demoRepository
+```
+
+Очікувано скрипт покаже шість етапів і завершиться `Repository configuration applied successfully`. Пояснити, що команда:
+
+1. створює публічний репозиторій з bootstrap README;
+2. застосовує merge/repository settings;
+3. створює або оновлює ruleset для default branch;
+4. створює labels і 11 issues;
+5. створює та прив’язує Project із чотирма workflow-станами;
+6. додає задачі в Backlog.
+
+Скрипт ідемпотентний: повторний запуск оновлює ruleset і повторно використовує issues/Project замість створення дублікатів.
+
+### 6. Перевірити результат тільки через CLI
+
+```powershell
+gh repo view "StanislavHst/$demoRepository" `
+  --json visibility,mergeCommitAllowed,rebaseMergeAllowed,squashMergeAllowed,deleteBranchOnMerge
+
+gh api "repos/StanislavHst/$demoRepository/rulesets" `
+  --jq '.[] | {name,enforcement,target}'
+
+gh issue list --repo "StanislavHst/$demoRepository" --limit 20
+gh project list --owner StanislavHst
+```
+
+Потім у браузері швидко показати Settings → Rules → Rulesets і Project board. Це візуальна перевірка результату, але джерелом налаштувань залишаються versioned JSON і script.
+
+### 7. Показати правильний PR workflow
+
+```powershell
+git log --oneline --graph --decorate --all
+gh pr view 12 --repo StanislavHst/devops-portfolio --web
+```
+
+Що сказати: «Початковий README створив GitHub як bootstrap порожнього репозиторію. Після цього я відразу створив `lab-01/setup`. Усі файли лабораторної потрапляють у `main` тільки через PR #12. Squash merge залишає один змістовний коміт і підтримує лінійну історію».
+
+Показати, що PR description має `Closes #1`, self-check і команди перевірки. Після merge issue #1 автоматично переходить у closed/Done, а feature branch видаляється.
+
+### 8. Безпечно прибрати demo-репозиторій
+
+Тільки після перевірки повної назви:
+
+```powershell
+Write-Host "Deleting only: StanislavHst/$demoRepository"
+gh repo delete "StanislavHst/$demoRepository" --yes
+```
+
+Не використовувати glob або статичну назву основного репозиторію. Видаляється лише одноразовий demo; `devops-portfolio` залишається.
+
+## Короткі відповіді на типові питання викладача
+
+**Чому public repository?** На безкоштовному personal plan потрібні правила для публічного репозиторію; крім того, це портфоліо для зовнішнього перегляду.
+
+**Чому MIT, а не GPL?** MIT мінімально обмежує повторне використання навчальних прикладів. GPL було б доречніше, якби метою було зобов’язати похідні роботи залишатися open source.
+
+**Чому не ввімкнені status checks?** До першого запуску workflow GitHub не знає назви job/check. Реальний required check додається після CI у Lab 04.
+
+**Чому zero required approvals?** У personal solo workflow автор не може схвалити власний PR. Процес PR уже дає явний diff і контрольовану точку merge; незалежний approval з’явиться разом із командою.
+
+**Чому дозволені squash і rebase, але не merge commit?** Обидва дозволені методи сумісні з linear history. Для лабораторних використовую squash: проміжні технічні коміти PR стають одним зрозумілим комітом у `main`.
+
+**Навіщо правила як код, якщо їх можна наклікати?** Код можна review-ити, порівнювати, повторно запускати, застосовувати до десятків репозиторіїв і використовувати для disaster recovery. Кліки не дають надійного diff чи відтворюваності.
+
+**Що буде неправильним у поточному рішенні для команди?** Zero approvals і можливість admin bypass. Для команди слід додати reviewer/Code Owners, required CI/security checks, stale review dismissal, thread resolution і заборону bypass.
