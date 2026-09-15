@@ -1,0 +1,19 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "yaml.validate": true,
+  "yaml.schemaStore.enable": true,
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.{yml,yaml}",
+    "https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json": "compose*.{yml,yaml}"
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+  }
+}
