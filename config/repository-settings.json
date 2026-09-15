@@ -46,8 +46,9 @@
     ]
   },
   "project": {
-    "title": "DevOps Portfolio Roadmap",
-    "field": "Workflow",
+    "title": "DevOps Portfolio Roadmap — {repository}",
+    "description": "Course roadmap: lab-01 through lab-10 and the final DevOps project",
+    "field": "Status",
     "columns": ["Backlog", "In Progress", "Review", "Done"]
   },
   "issues": [

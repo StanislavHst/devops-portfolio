@@ -115,16 +115,24 @@ foreach ($issueDefinition in $config.issues) {
 }
 
 Write-Host '[5/6] Ensuring the project board and workflow columns exist...'
+$projectTitle = $config.project.title.Replace('{repository}', $Repository)
 $projectList = Invoke-GhJson -Arguments @('project', 'list', '--owner', $Owner, '--limit', '100', '--format', 'json')
-$project = @($projectList.projects) | Where-Object title -eq $config.project.title | Select-Object -First 1
+$project = @($projectList.projects) | Where-Object title -eq $projectTitle | Select-Object -First 1
 if (-not $project) {
     $project = Invoke-GhJson -Arguments @(
-        'project', 'create', '--owner', $Owner, '--title', $config.project.title, '--format', 'json'
+        'project', 'create', '--owner', $Owner, '--title', $projectTitle, '--format', 'json'
     )
 }
 
 $projectNumber = [string]$project.number
 $projectDetails = Invoke-GhJson -Arguments @('project', 'view', $projectNumber, '--owner', $Owner, '--format', 'json')
+$projectNodeId = [string]$projectDetails.id
+& gh project edit $projectNumber --owner $Owner `
+    --title $projectTitle `
+    --visibility PUBLIC `
+    --description $config.project.description | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not publish the project.' }
+
 $fields = Invoke-GhJson -Arguments @('project', 'field-list', $projectNumber, '--owner', $Owner, '--format', 'json')
 $workflowField = @($fields.fields) | Where-Object name -eq $config.project.field | Select-Object -First 1
 if (-not $workflowField) {
@@ -133,6 +141,65 @@ if (-not $workflowField) {
         --data-type SINGLE_SELECT `
         --single-select-options ($config.project.columns -join ',') | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Could not create project workflow field.' }
+}
+else {
+    $optionColors = @('GRAY', 'YELLOW', 'BLUE', 'GREEN')
+    $fieldOptions = for ($index = 0; $index -lt $config.project.columns.Count; $index++) {
+        [ordered]@{
+            name        = $config.project.columns[$index]
+            color       = $optionColors[$index]
+            description = "Workflow state: $($config.project.columns[$index])"
+        }
+    }
+    $updateFieldRequest = [ordered]@{
+        query = @'
+mutation($input: UpdateProjectV2FieldInput!) {
+  updateProjectV2Field(input: $input) {
+    projectV2Field { ... on ProjectV2SingleSelectField { id } }
+  }
+}
+'@
+        variables = [ordered]@{
+            input = [ordered]@{
+                fieldId             = $workflowField.id
+                singleSelectOptions = $fieldOptions
+            }
+        }
+    }
+    $fieldRequestFile = New-TemporaryFile
+    try {
+        $updateFieldRequest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $fieldRequestFile -Encoding utf8
+        & gh api graphql --input $fieldRequestFile | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not update project workflow columns.' }
+    }
+    finally {
+        Remove-Item -LiteralPath $fieldRequestFile -Force
+    }
+}
+
+$viewsQuery = @'
+query($projectId: ID!) {
+  node(id: $projectId) {
+    ... on ProjectV2 { views(first: 50) { nodes { name layout } } }
+  }
+}
+'@
+$viewsResponse = Invoke-GhJson -Arguments @(
+    'api', 'graphql', '-f', "query=$viewsQuery", '-f', "projectId=$projectNodeId"
+)
+$boardView = @($viewsResponse.data.node.views.nodes) | Where-Object {
+    $_.name -eq 'Board' -and $_.layout -eq 'BOARD_LAYOUT'
+} | Select-Object -First 1
+if (-not $boardView) {
+    $createBoardMutation = @'
+mutation($projectId: ID!) {
+  createProjectV2View(input: {projectId: $projectId, name: "Board", layout: BOARD_LAYOUT}) {
+    projectV2View { id name layout }
+  }
+}
+'@
+    & gh api graphql -f query=$createBoardMutation -f projectId=$projectNodeId | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not create the project Board view.' }
 }
 
 $repositoryNodeId = & gh api "repos/$fullName" --jq '.node_id'
@@ -143,7 +210,7 @@ mutation($projectId: ID!, $repositoryId: ID!) {
   }
 }
 '@
-& gh api graphql -f query=$linkMutation -f projectId=$projectDetails.id -f repositoryId=$repositoryNodeId 2>$null | Out-Null
+& gh api graphql -f query=$linkMutation -f projectId=$projectNodeId -f repositoryId=$repositoryNodeId 2>$null | Out-Null
 
 Write-Host '[6/6] Adding every course task to Backlog...'
 $fields = Invoke-GhJson -Arguments @('project', 'field-list', $projectNumber, '--owner', $Owner, '--format', 'json')
@@ -163,7 +230,7 @@ foreach ($issueUrl in $issueUrls) {
 
     & gh project item-edit `
         --id $item.id `
-        --project-id $projectDetails.id `
+        --project-id $projectNodeId `
         --field-id $workflowField.id `
         --single-select-option-id $backlogOption.id | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Could not set Backlog for $issueUrl" }
