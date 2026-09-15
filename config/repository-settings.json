@@ -15,6 +15,13 @@
     "name": "Protect main",
     "target": "branch",
     "enforcement": "active",
+    "bypass_actors": [
+      {
+        "actor_id": 144616346,
+        "actor_type": "User",
+        "bypass_mode": "always"
+      }
+    ],
     "conditions": {
       "ref_name": {
         "include": ["~DEFAULT_BRANCH"],
