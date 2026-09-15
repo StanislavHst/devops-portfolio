@@ -1,0 +1,67 @@
+{
+  "repository": {
+    "description": "DevOps learning portfolio: labs, automation, CI/CD and infrastructure as code",
+    "homepage": "",
+    "visibility": "public",
+    "has_issues": true,
+    "has_projects": true,
+    "has_wiki": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": false,
+    "allow_rebase_merge": true,
+    "delete_branch_on_merge": true
+  },
+  "ruleset": {
+    "name": "Protect main",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [
+      {
+        "actor_id": 144616346,
+        "actor_type": "User",
+        "bypass_mode": "always"
+      }
+    ],
+    "conditions": {
+      "ref_name": {
+        "include": ["~DEFAULT_BRANCH"],
+        "exclude": []
+      }
+    },
+    "rules": [
+      { "type": "deletion" },
+      { "type": "non_fast_forward" },
+      { "type": "required_linear_history" },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false,
+          "allowed_merge_methods": ["squash", "rebase"]
+        }
+      }
+    ]
+  },
+  "project": {
+    "title": "DevOps Portfolio Roadmap — {repository}",
+    "description": "Course roadmap: lab-01 through lab-10 and the final DevOps project",
+    "field": "Status",
+    "columns": ["Backlog", "In Progress", "Review", "Done"]
+  },
+  "issues": [
+    { "title": "Lab 01: Environment and professional Git workflow", "label": "lab" },
+    { "title": "Lab 02: Team Git workflow", "label": "lab" },
+    { "title": "Lab 03: Containers", "label": "lab" },
+    { "title": "Lab 04: Continuous Integration", "label": "lab" },
+    { "title": "Lab 05: Continuous Delivery", "label": "lab" },
+    { "title": "Lab 06: Infrastructure as Code", "label": "lab" },
+    { "title": "Lab 07: Configuration management", "label": "lab" },
+    { "title": "Lab 08: Kubernetes", "label": "lab" },
+    { "title": "Lab 09: Observability", "label": "lab" },
+    { "title": "Lab 10: DevSecOps", "label": "lab" },
+    { "title": "Final project", "label": "final-project" }
+  ]
+}
