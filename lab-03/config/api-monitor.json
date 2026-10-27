@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "name": "healthy-endpoint",
+      "url": "https://httpbin.org/status/200",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "dns-failure",
+      "url": "http://nonexistent-api-monitor.invalid",
+      "expected_status": 200,
+      "timeout_seconds": 3,
+      "response_time_threshold_seconds": 1
+    },
+    {
+      "name": "connection-refused",
+      "url": "http://127.0.0.1:65534",
+      "expected_status": 200,
+      "timeout_seconds": 3,
+      "response_time_threshold_seconds": 1
+    },
+    {
+      "name": "expired-certificate",
+      "url": "https://expired.badssl.com/",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "unexpected-status",
+      "url": "https://httpbin.org/status/418",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    }
+  ]
+}
