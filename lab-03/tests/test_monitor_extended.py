@@ -105,7 +105,7 @@ class ConfigTests(unittest.TestCase):
     def test_wishlist_config_has_health_dependencies(self):
         config = Path(__file__).resolve().parents[1] / "config/api-monitor.json"
         targets = monitor.load_targets(config)
-        self.assertEqual(len(targets), 5)
+        self.assertEqual(len(targets), 16)
         health = next(t for t in targets if t["name"] == "wishlist-health")
         self.assertEqual(health["expected_json"], {"status": "healthy", "redis": "healthy"})
         self.assertTrue(all(t["url"].startswith("http://127.0.0.1:8000/") for t in targets))
