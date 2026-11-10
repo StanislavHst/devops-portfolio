@@ -68,11 +68,12 @@
       "response_time_threshold_seconds": 2
     },
     {
-      "name": "wishlist-empty-items",
+      "name": "contract-items-of-missing-wishlist",
       "url": "http://127.0.0.1:8000/wishlists/0/items",
-      "expected_status": 200,
+      "expected_status": 404,
       "timeout_seconds": 5,
-      "response_time_threshold_seconds": 2
+      "response_time_threshold_seconds": 2,
+      "check_kind": "contract"
     },
     {
       "name": "wishlist-status-history-auth-guard",
@@ -115,6 +116,65 @@
       "expected_status": 404,
       "timeout_seconds": 5,
       "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-swagger-oauth-redirect",
+      "url": "http://127.0.0.1:8000/docs/oauth2-redirect",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-negative-id",
+      "url": "http://127.0.0.1:8000/wishlists/-1",
+      "expected_status": 404,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-large-id",
+      "url": "http://127.0.0.1:8000/wishlists/2147483648",
+      "expected_status": 404,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-invalid-parent-id-for-items",
+      "url": "http://127.0.0.1:8000/wishlists/not-a-number/items",
+      "expected_status": 422,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-items-collection",
+      "url": "http://127.0.0.1:8000/wishlists/1/items",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "demo-unknown-route-expects-200",
+      "url": "http://127.0.0.1:8000/__monitor_missing_route__",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2,
+      "check_kind": "demonstration"
+    },
+    {
+      "name": "demo-auth-route-expects-200",
+      "url": "http://127.0.0.1:8000/users/me",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2,
+      "check_kind": "demonstration"
+    },
+    {
+      "name": "demo-health-strict-latency",
+      "url": "http://127.0.0.1:8000/health",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 0.0001,
+      "check_kind": "demonstration"
     }
   ]
 }
