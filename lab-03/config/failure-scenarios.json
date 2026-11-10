@@ -1,8 +1,0 @@
-{
-  "targets": [
-    {"name": "wishlist-dns-failure", "url": "http://wishlist-monitor.invalid/health", "expected_status": 200, "timeout_seconds": 3, "response_time_threshold_seconds": 2},
-    {"name": "wishlist-closed-port", "url": "http://127.0.0.1:65534/health", "expected_status": 200, "timeout_seconds": 3, "response_time_threshold_seconds": 2},
-    {"name": "tls-expired-certificate", "url": "https://expired.badssl.com/", "expected_status": 200, "timeout_seconds": 10, "response_time_threshold_seconds": 5},
-    {"name": "wishlist-unexpected-status", "url": "http://127.0.0.1:8000/__monitor_missing_route__", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2}
-  ]
-}

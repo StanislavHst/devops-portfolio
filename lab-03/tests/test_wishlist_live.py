@@ -25,6 +25,12 @@ class WishlistLiveTests(unittest.TestCase):
     def test_health_includes_healthy_redis(self):
         self.assertEqual(self.result("wishlist-health")["status"], "healthy")
 
+    def test_all_configured_api_cases(self):
+        for name in self.targets:
+            with self.subTest(target=name):
+                result = self.result(name)
+                self.assertEqual(result["status"], "healthy", result["message"])
+
     def test_public_wishlists_is_json_array(self):
         item = self.targets["wishlist-list-postgres-redis"]
         with urlopen(item["url"], timeout=item["timeout_seconds"]) as response:

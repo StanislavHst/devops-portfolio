@@ -1,9 +1,120 @@
 {
   "targets": [
-    {"name": "wishlist-health", "url": "http://127.0.0.1:8000/health", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2, "expected_json": {"status": "healthy", "redis": "healthy"}},
-    {"name": "wishlist-list-postgres-redis", "url": "http://127.0.0.1:8000/wishlists", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
-    {"name": "wishlist-openapi", "url": "http://127.0.0.1:8000/openapi.json", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
-    {"name": "wishlist-swagger", "url": "http://127.0.0.1:8000/docs", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
-    {"name": "wishlist-auth-guard", "url": "http://127.0.0.1:8000/users/me", "expected_status": 401, "timeout_seconds": 5, "response_time_threshold_seconds": 2}
+    {
+      "name": "wishlist-health",
+      "url": "http://127.0.0.1:8000/health",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2,
+      "expected_json": {
+        "status": "healthy",
+        "redis": "healthy"
+      }
+    },
+    {
+      "name": "wishlist-list-postgres-redis",
+      "url": "http://127.0.0.1:8000/wishlists",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-openapi",
+      "url": "http://127.0.0.1:8000/openapi.json",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-swagger",
+      "url": "http://127.0.0.1:8000/docs",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-auth-guard",
+      "url": "http://127.0.0.1:8000/users/me",
+      "expected_status": 401,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-redoc",
+      "url": "http://127.0.0.1:8000/redoc",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-my-lists-auth-guard",
+      "url": "http://127.0.0.1:8000/my-wishlists",
+      "expected_status": 401,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-missing-id",
+      "url": "http://127.0.0.1:8000/wishlists/0",
+      "expected_status": 404,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-invalid-id",
+      "url": "http://127.0.0.1:8000/wishlists/not-a-number",
+      "expected_status": 422,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-empty-items",
+      "url": "http://127.0.0.1:8000/wishlists/0/items",
+      "expected_status": 200,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-status-history-auth-guard",
+      "url": "http://127.0.0.1:8000/wishlists/0/items/0/statuses",
+      "expected_status": 401,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-registration-method-guard",
+      "url": "http://127.0.0.1:8000/register",
+      "expected_status": 405,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-token-method-guard",
+      "url": "http://127.0.0.1:8000/token",
+      "expected_status": 405,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-mark-method-guard",
+      "url": "http://127.0.0.1:8000/wishlists/0/items/0/mark",
+      "expected_status": 405,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-item-method-guard",
+      "url": "http://127.0.0.1:8000/wishlists/0/items/0",
+      "expected_status": 405,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    },
+    {
+      "name": "wishlist-unknown-route",
+      "url": "http://127.0.0.1:8000/__monitor_missing_route__",
+      "expected_status": 404,
+      "timeout_seconds": 5,
+      "response_time_threshold_seconds": 2
+    }
   ]
 }
