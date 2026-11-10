@@ -1,39 +1,9 @@
 {
   "targets": [
-    {
-      "name": "healthy-endpoint",
-      "url": "https://httpbin.org/status/200",
-      "expected_status": 200,
-      "timeout_seconds": 5,
-      "response_time_threshold_seconds": 2
-    },
-    {
-      "name": "dns-failure",
-      "url": "http://nonexistent-api-monitor.invalid",
-      "expected_status": 200,
-      "timeout_seconds": 3,
-      "response_time_threshold_seconds": 1
-    },
-    {
-      "name": "connection-refused",
-      "url": "http://127.0.0.1:65534",
-      "expected_status": 200,
-      "timeout_seconds": 3,
-      "response_time_threshold_seconds": 1
-    },
-    {
-      "name": "expired-certificate",
-      "url": "https://expired.badssl.com/",
-      "expected_status": 200,
-      "timeout_seconds": 5,
-      "response_time_threshold_seconds": 2
-    },
-    {
-      "name": "unexpected-status",
-      "url": "https://httpbin.org/status/418",
-      "expected_status": 200,
-      "timeout_seconds": 5,
-      "response_time_threshold_seconds": 2
-    }
+    {"name": "wishlist-health", "url": "http://127.0.0.1:8000/health", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2, "expected_json": {"status": "healthy", "redis": "healthy"}},
+    {"name": "wishlist-list-postgres-redis", "url": "http://127.0.0.1:8000/wishlists", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
+    {"name": "wishlist-openapi", "url": "http://127.0.0.1:8000/openapi.json", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
+    {"name": "wishlist-swagger", "url": "http://127.0.0.1:8000/docs", "expected_status": 200, "timeout_seconds": 5, "response_time_threshold_seconds": 2},
+    {"name": "wishlist-auth-guard", "url": "http://127.0.0.1:8000/users/me", "expected_status": 401, "timeout_seconds": 5, "response_time_threshold_seconds": 2}
   ]
 }
