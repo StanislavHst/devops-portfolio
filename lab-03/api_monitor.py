@@ -184,6 +184,8 @@ def load_targets(config_path: Path) -> list[dict[str, Any]]:
             )
 
         expected_json = target.get("expected_json")
+        if target.get("check_kind", "monitoring") not in {"monitoring", "contract", "demonstration"}:
+            raise ValueError(f"Ціль '{name}': невідомий check_kind")
         if "expected_json" in target and not isinstance(expected_json, dict):
             raise ValueError(f"Ціль '{name}': expected_json має бути JSON-об'єктом")
         if any(existing["name"] == name for existing in validated):
@@ -245,6 +247,11 @@ def result_record(
     message: str,
     http_status: int | None = None,
 ) -> dict[str, Any]:
+    kind = target.get("check_kind", "monitoring")
+    if kind == "demonstration":
+        message = "[ДЕМОНСТРАЦІЯ] " + message
+    elif kind == "contract":
+        message = "[ПЕРЕВІРКА КОНТРАКТУ] " + message
     return {
         "timestamp": utc_now(),
         "target": target["name"],
@@ -255,6 +262,8 @@ def result_record(
         "failure_type": failure_type,
         "attempts": attempts,
         "message": message,
+        "check_kind": kind,
+        "expected_http_status": target["expected_status"],
     }
 
 
@@ -369,6 +378,7 @@ def send_discord_notification(
         "🚨 API monitor\n"
         f"Ціль: {result['target']}\n"
         f"Тип збою: {result['failure_type']}\n"
+        f"Режим: {result.get('check_kind', 'monitoring')}\n"
         f"Деталі: {result['message']}\n"
         f"URL: {result['url']}"
     )
