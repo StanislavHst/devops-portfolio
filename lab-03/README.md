@@ -56,6 +56,28 @@ export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/ID/TOKEN"
 
 ## Запуск
 
+На налаштованому Windows-комп'ютері можна запускати з кореня репозиторію:
+
+```powershell
+./lab-03/run-monitor.ps1
+$LASTEXITCODE
+```
+
+Обгортка підставляє `DISCORD_WEBHOOK_URL` із локального зашифрованого файла
+`$env:LOCALAPPDATA/DevOpsLab03/discord-webhook.xml`. Windows DPAPI прив'язує
+секрет до поточного користувача Windows. Секрет зберігається поза репозиторієм.
+Після завершення попереднє значення змінної середовища відновлюється.
+На іншому комп'ютері задайте власний `DISCORD_WEBHOOK_URL` описаним вище способом.
+
+Для особистої демонстрації використовується Discord-сервер **DevOps Lab Monitor**,
+канал **#general**, webhook **DevOps API Monitor**. На сервер нікого не запрошено.
+Перевірка 10 листопада 2026 року підтвердила доставку чотирьох повідомлень:
+`dns`, `connection_refused`, `certificate`, `unexpected_status`.
+У кожному є назва цілі, тип збою, деталі й URL. Журнал містить окремий
+`notification=sent` для кожної з цих цілей.
+
+Послідовність демонстрації та пояснення реалізації: [DEFENSE.md](DEFENSE.md).
+
 Потрібен Python 3.10 або новіший.
 
 ```powershell

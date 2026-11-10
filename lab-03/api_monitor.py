@@ -329,7 +329,10 @@ def send_discord_notification(
     request = Request(
         webhook_url,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "DevOpsLabMonitor/1.0",
+        },
         method="POST",
     )
     try:
