@@ -7,6 +7,7 @@ import argparse
 import errno
 import json
 import logging
+import math
 import os
 import socket
 import ssl
@@ -16,6 +17,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 
@@ -24,7 +26,7 @@ EXIT_PROBLEMS = 1
 EXIT_CONFIG_ERROR = 2
 EXIT_OUTPUT_ERROR = 3
 
-NETWORK_FAILURES = {"dns", "connection_refused", "timeout", "certificate"}
+NETWORK_FAILURES = {"dns", "connection_refused", "timeout", "certificate", "network_error"}
 FAILURE_LABELS = {
     "dns": "DNS: ім'я не вдалося перетворити на IP-адресу",
     "connection_refused": "З'єднання відхилено: на вказаному порту ніхто не слухає",
@@ -33,6 +35,7 @@ FAILURE_LABELS = {
     "unexpected_status": "Несподіваний HTTP-код",
     "slow_response": "Повільна відповідь",
     "network_error": "Інша мережева помилка",
+    "unexpected_body": "Несподіваний JSON-вміст відповіді",
 }
 
 
@@ -58,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
             "--output reports/api-monitor-results.json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="перевірити цілі без надсилання сповіщень у Discord",
     )
     parser.add_argument(
         "--config",
@@ -86,7 +94,10 @@ def setup_logger(log_path: Path) -> logging.Logger:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("api_monitor")
     logger.setLevel(logging.INFO)
-    logger.handlers.clear()
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+        handler.close()
+    logger.propagate = False
 
     formatter = logging.Formatter(
         "%(asctime)s level=%(levelname)s %(message)s",
@@ -111,7 +122,7 @@ def load_targets(config_path: Path) -> list[dict[str, Any]]:
         raise ValueError(
             f"Некоректний JSON у {config_path}: рядок {exc.lineno}, стовпець {exc.colno}"
         ) from exc
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
         raise ValueError(f"Не вдалося прочитати {config_path}: {exc}") from exc
 
     targets = raw.get("targets") if isinstance(raw, dict) else None
@@ -147,21 +158,36 @@ def load_targets(config_path: Path) -> list[dict[str, Any]]:
 
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"Ціль #{index}: 'name' має бути непорожнім рядком")
-        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        try:
+            parsed = urlsplit(url) if isinstance(url, str) else None
+            valid_url = (
+                parsed is not None and parsed.scheme in {"http", "https"}
+                and bool(parsed.hostname) and parsed.username is None
+                and parsed.password is None and parsed.port != 0
+            )
+        except ValueError:
+            valid_url = False
+        if not valid_url:
             raise ValueError(f"Ціль '{name}': URL має починатися з http:// або https://")
         if not isinstance(expected_status, int) or not 100 <= expected_status <= 599:
             raise ValueError(f"Ціль '{name}': expected_status має бути від 100 до 599")
-        if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not math.isfinite(timeout) or timeout <= 0:
             raise ValueError(f"Ціль '{name}': timeout_seconds має бути додатним числом")
         if (
             not isinstance(threshold, (int, float))
             or isinstance(threshold, bool)
+            or not math.isfinite(threshold)
             or threshold <= 0
         ):
             raise ValueError(
                 f"Ціль '{name}': response_time_threshold_seconds має бути додатним числом"
             )
 
+        expected_json = target.get("expected_json")
+        if "expected_json" in target and not isinstance(expected_json, dict):
+            raise ValueError(f"Ціль '{name}': expected_json має бути JSON-об'єктом")
+        if any(existing["name"] == name for existing in validated):
+            raise ValueError(f"Повторна назва цілі: {name}")
         validated.append(target)
     return validated
 
@@ -240,10 +266,13 @@ def request_once(target: dict[str, Any], attempt: int) -> dict[str, Any]:
         method="GET",
     )
     http_status: int | None = None
+    body = b""
 
     try:
         with urlopen(request, timeout=float(target["timeout_seconds"])) as response:
             http_status = response.getcode()
+            if "expected_json" in target:
+                body = response.read(1_048_577)
     except HTTPError as exc:
         http_status = exc.code
     except (URLError, OSError, ssl.SSLError) as exc:
@@ -273,6 +302,24 @@ def request_once(target: dict[str, Any], attempt: int) -> dict[str, Any]:
             ),
             http_status=http_status,
         )
+
+    if "expected_json" in target:
+        try:
+            if len(body) > 1_048_576:
+                raise ValueError("JSON-відповідь перевищує 1 MiB")
+            actual_json = json.loads(body)
+            if not isinstance(actual_json, dict) or any(
+                key not in actual_json or actual_json[key] != value
+                for key, value in target["expected_json"].items()
+            ):
+                raise ValueError("очікувані поля JSON відсутні або мають інші значення")
+        except (ValueError, UnicodeError) as exc:
+            return result_record(
+                target, status="problem", response_time_ms=elapsed_ms,
+                attempts=attempt, failure_type="unexpected_body",
+                message=f"{FAILURE_LABELS['unexpected_body']}: {exc}",
+                http_status=http_status,
+            )
 
     threshold_ms = float(target["response_time_threshold_seconds"]) * 1000
     if elapsed_ms > threshold_ms:
@@ -325,17 +372,20 @@ def send_discord_notification(
         f"Деталі: {result['message']}\n"
         f"URL: {result['url']}"
     )
-    body = json.dumps({"content": content}, ensure_ascii=False).encode("utf-8")
-    request = Request(
-        webhook_url,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "DevOpsLabMonitor/1.0",
-        },
-        method="POST",
-    )
+    body = json.dumps(
+        {"content": content[:2000], "allowed_mentions": {"parse": []}},
+        ensure_ascii=False,
+    ).encode("utf-8")
     try:
+        request = Request(
+            webhook_url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "DevOpsLabMonitor/1.0",
+            },
+            method="POST",
+        )
         with urlopen(request, timeout=10) as response:
             if response.getcode() not in (200, 204):
                 logger.error(
@@ -344,11 +394,11 @@ def send_discord_notification(
                     response.getcode(),
                 )
                 return False
-    except (URLError, OSError, ssl.SSLError) as exc:
+    except (URLError, OSError, ssl.SSLError, ValueError) as exc:
         logger.error(
             "target=%s notification=failed error=%s",
             result["target"],
-            exc,
+            type(exc).__name__,
         )
         return False
 
@@ -410,7 +460,9 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         if result["status"] == "problem":
-            if webhook_url:
+            if args.no_notify:
+                logger.info("target=%s notification=disabled", result["target"])
+            elif webhook_url:
                 send_discord_notification(webhook_url, result, logger)
             else:
                 logger.warning(

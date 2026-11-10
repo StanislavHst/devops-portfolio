@@ -1,180 +1,168 @@
-# Лабораторна робота №3 — Завдання 2
+# Лабораторна робота №3 — завдання 2: монітор Wishlist API
 
-## Монітор доступності API
+Монітор призначений для локального проєкту [Wishlist UI](https://github.com/nromanen/wishlist-ui) та [Wishlist API](https://github.com/nromanen/withlist-api), запущеного через Docker. Код інструмента — [api_monitor.py](api_monitor.py), звіт про реалізацію — [DEFENSE.md](DEFENSE.md).
 
-`api_monitor.py` перевіряє HTTP/HTTPS endpoint'и з JSON-конфігурації, вимірює час відповіді, розрізняє причини збою, записує журнал і структурований JSON-звіт. Для кожної проблемної цілі монітор може надіслати повідомлення в Discord.
+## Передумови
 
-Реалізація використовує лише стандартну бібліотеку Python, тому окремий файл залежностей не потрібен.
+- Python 3.10+; залежностей поза стандартною бібліотекою немає.
+- Docker Desktop запущений. Compose API містить `api`, `postgres` і `redis`.
+- API доступний на `http://127.0.0.1:8000`; UI — на `http://localhost:5173`.
 
-## Файли
+На цьому комп'ютері API запускається так:
 
-```text
-lab-03/
-├── api_monitor.py
-├── config/
-│   └── api-monitor.json
-├── tests/
-│   └── test_api_monitor.py
-└── README.md
+```powershell
+docker compose -f "C:\Users\stasi\OneDrive\Документы\wishlist-local\withlist-api\docker-compose.yml" up -d
 ```
 
-`logs/` і `reports/` створюються автоматично під час запуску та не додаються до Git.
+Монітор виконується на Windows-хості, тому використовує `127.0.0.1:8000`. Усередині іншого контейнера `localhost` позначатиме сам контейнер; тоді URL треба змінити на адресу сервісу у Docker-мережі.
 
-## Конфігурація
+## Основна конфігурація
 
-Кожна ціль має назву, URL, очікуваний HTTP-код, мережевий тайм-аут і максимально допустимий час відповіді:
+[config/api-monitor.json](config/api-monitor.json) містить п'ять реальних цілей:
+
+| Ціль | Очікувана відповідь | Призначення |
+|---|---|---|
+| `/health` | 200; `status=healthy`, `redis=healthy` | Перевірка API та відповіді Redis |
+| `/wishlists` | 200 | Доступність публічного списку через API; дані можуть надходити з кешу |
+| `/openapi.json` | 200 | Доступність схеми API |
+| `/docs` | 200 | Доступність Swagger UI |
+| `/users/me` | 401 без токена | Захищений маршрут правильно вимагає авторизацію |
+
+Перевірка `/wishlists` не гарантує поточного з'єднання з PostgreSQL, якщо спрацював Redis-кеш. Монітор не виконує CRUD-операції, не створює акаунтів і не змінює дані Wishlist.
+
+Приклад цілі:
 
 ```json
 {
-  "targets": [
-    {
-      "name": "production-api",
-      "url": "https://example.com/health",
-      "expected_status": 200,
-      "timeout_seconds": 5,
-      "response_time_threshold_seconds": 1.5
-    }
-  ]
+  "name": "wishlist-health",
+  "url": "http://127.0.0.1:8000/health",
+  "expected_status": 200,
+  "timeout_seconds": 5,
+  "response_time_threshold_seconds": 2,
+  "expected_json": {"status": "healthy", "redis": "healthy"}
 }
 ```
 
-Адреси не зашиті в Python-код. Секретний Discord webhook також не зберігається в репозиторії — він читається зі змінної середовища `DISCORD_WEBHOOK_URL`.
+`expected_json` — додаткова перевірка заданих полів верхнього рівня JSON. Wishlist `/health` повертає HTTP 200 навіть при `redis=unhealthy`; перевірка JSON виявляє цей випадок як `unexpected_body`. Зчитується не більше 1 MiB JSON-відповіді.
 
-PowerShell:
-
-```powershell
-$env:DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/ID/TOKEN"
-```
-
-Bash:
-
-```bash
-export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/ID/TOKEN"
-```
-
-Якщо webhook не заданий, перевірка все одно виконується, але журнал містить запис `notification=skipped`. URL webhook ніколи не виводиться в журнал.
+Під час перевірки реальний Redis-контейнер короткочасно зупинено: монітор виявив `unexpected_body` при HTTP 200 та доставив Discord-повідомлення. Redis відновлено; повторний прогін показав 5 здорових цілей.
 
 ## Запуск
 
-На налаштованому Windows-комп'ютері можна запускати з кореня репозиторію:
-
-```powershell
-./lab-03/run-monitor.ps1
-$LASTEXITCODE
-```
-
-Обгортка підставляє `DISCORD_WEBHOOK_URL` із локального зашифрованого файла
-`$env:LOCALAPPDATA/DevOpsLab03/discord-webhook.xml`. Windows DPAPI прив'язує
-секрет до поточного користувача Windows. Секрет зберігається поза репозиторієм.
-Після завершення попереднє значення змінної середовища відновлюється.
-На іншому комп'ютері задайте власний `DISCORD_WEBHOOK_URL` описаним вище способом.
-
-Для особистої демонстрації використовується Discord-сервер **DevOps Lab Monitor**,
-канал **#general**, webhook **DevOps API Monitor**. На сервер нікого не запрошено.
-Перевірка 10 листопада 2026 року підтвердила доставку чотирьох повідомлень:
-`dns`, `connection_refused`, `certificate`, `unexpected_status`.
-У кожному є назва цілі, тип збою, деталі й URL. Журнал містить окремий
-`notification=sent` для кожної з цих цілей.
-
-Послідовність демонстрації та пояснення реалізації: [DEFENSE.md](DEFENSE.md).
-
-Потрібен Python 3.10 або новіший.
-
-```powershell
-cd lab-03
-python api_monitor.py
-```
-
-Повний варіант із явними шляхами:
-
-```powershell
-python api_monitor.py `
-  --config config/api-monitor.json `
-  --output reports/api-monitor-results.json `
-  --log-file logs/api-monitor.log
-```
-
-Довідка з усіма параметрами та прикладом:
+Усі наступні команди виконуються з теки `lab-03`:
 
 ```powershell
 python api_monitor.py --help
+python api_monitor.py
+$LASTEXITCODE
 ```
 
-## Типи результату
+При справному Wishlist: `total=5`, `healthy=5`, `problems=0`, код `0`. Для здорових цілей Discord-повідомлення не надсилаються.
 
-| `failure_type` | Значення |
+Явні параметри:
+
+```powershell
+python api_monitor.py --config config/api-monitor.json --output reports/api-monitor-results.json --log-file logs/api-monitor.log
+```
+
+Параметри: `--config` — JSON-конфігурація; `--output` — JSON-звіт; `--log-file` — журнал; `--webhook-env` — ім'я змінної з webhook (типово `DISCORD_WEBHOOK_URL`); `--no-notify` — діагностика без повідомлень.
+
+## Discord
+
+Використовується особистий сервер **DevOps Lab Monitor**, канал **#general**, webhook **DevOps API Monitor**. Для кожної проблемної цілі надсилається повідомлення з назвою, типом збою, деталями та URL.
+
+Webhook читається виключно зі змінної середовища. На іншому комп'ютері його можна задати в поточній PowerShell-сесії:
+
+```powershell
+$env:DISCORD_WEBHOOK_URL = "<власний webhook URL>"
+python api_monitor.py
+```
+
+На цьому Windows-комп'ютері секрет збережено через DPAPI поза репозиторієм: `$env:LOCALAPPDATA/DevOpsLab03/discord-webhook.xml`. Обгортка підставляє його у змінну середовища та відновлює її попереднє значення після запуску:
+
+```powershell
+./run-monitor.ps1
+```
+
+Без webhook проблеми все одно перевіряються й записуються, але журнал містить `notification=skipped`; це не є підтвердженням доставки. Успішне надсилання має `notification=sent`, невдале — `notification=failed`. Сам webhook не виводиться; помилка доставки записується назвою класу помилки без секретного URL. `--no-notify` / `-NoNotify` вимикає доставку явно.
+
+## Обов'язкові сценарії збоїв
+
+[config/failure-scenarios.json](config/failure-scenarios.json) відтворює чотири різні випадки з умови:
+
+| Сценарій | Результат |
 |---|---|
-| `dns` | доменне ім'я не вдалося перетворити на IP-адресу |
-| `connection_refused` | вузол доступний, але вказаний порт відхилив з'єднання |
-| `timeout` | відповідь не надійшла протягом `timeout_seconds` |
-| `certificate` | TLS-сертифікат не пройшов перевірку |
-| `unexpected_status` | отриманий HTTP-код не дорівнює `expected_status` |
-| `slow_response` | HTTP-код правильний, але відповідь повільніша за заданий поріг |
+| `wishlist-monitor.invalid/health` | `dns` |
+| закритий порт `127.0.0.1:65534` | `connection_refused` |
+| `expired.badssl.com` | `certificate` |
+| неіснуючий маршрут справжнього Wishlist API | `unexpected_status`: 404 замість 200 |
 
-Для `dns`, `connection_refused`, `timeout` і `certificate` виконується рівно одна повторна спроба. Несподіваний код і повільна відповідь не повторюються, бо сервер уже надав повноцінну відповідь.
+Локальний Wishlist використовує HTTP, тому для TLS-сценарію потрібен окремий публічний домен із простроченим сертифікатом. Навмисні помилки адреси й порту не змінюють налаштування проєкту.
 
-## Перевірочна конфігурація
+```powershell
+./run-monitor.ps1 -Config config/failure-scenarios.json
+$LASTEXITCODE
+```
 
-Файл `config/api-monitor.json` містить п'ять цілей:
+Очікується код `1`, чотири різні типи збою та чотири Discord-повідомлення. Обгортка зберігає цей звіт окремо: `reports/failure-scenarios-results.json`.
 
-1. робочий endpoint;
-2. зарезервований неіснуючий домен `.invalid` для DNS-помилки;
-3. закритий локальний порт для відхиленого з'єднання;
-4. `expired.badssl.com` із простроченим сертифікатом;
-5. endpoint, що повертає `418` замість очікуваного `200`.
-
-Фрагмент консольного виводу:
+Фрагмент журналу:
 
 ```text
-target=dns-failure status=problem failure_type=dns attempts=2
-target=connection-refused status=problem failure_type=connection_refused attempts=2
-target=expired-certificate status=problem failure_type=certificate attempts=2
-target=unexpected-status status=problem failure_type=unexpected_status attempts=1
+target=wishlist-dns-failure notification=sent
+target=wishlist-closed-port notification=sent
+target=tls-expired-certificate notification=sent
+target=wishlist-unexpected-status notification=sent
+action=monitor_finish result=problem total=4 problems=4
 ```
 
-Після запуску повні результати зберігаються в `reports/api-monitor-results.json`:
+## Типи збоїв і повторна спроба
 
-```json
-{
-  "timestamp": "2026-10-27T12:00:00+00:00",
-  "target": "unexpected-status",
-  "status": "problem",
-  "http_status": 418,
-  "response_time_ms": 245.71,
-  "failure_type": "unexpected_status",
-  "attempts": 1
-}
+Окремо обробляються `dns`, `connection_refused`, `timeout`, `certificate`, `unexpected_status`, `slow_response`, `unexpected_body` та загальна `network_error`.
+
+Для мережевих помилок виконується рівно одна повторна спроба; максимальна кількість спроб — 2. Помилка HTTP-коду, повільна відповідь і неправильний JSON не повторюються. Якщо друга спроба успішна, ціль здорова та повідомлення про збій не надсилається.
+
+## Журнал і JSON-звіт
+
+Журнал містить часову мітку, дію, ціль, статус, час відповіді, тип збою, кількість спроб і результат сповіщення. JSON-звіт містить `run_started_at`, `run_finished_at`, `summary` і масив `results`; кожен результат має `timestamp`, `target`, `url`, `status`, `http_status`, `response_time_ms`, `failure_type`, `attempts`, `message`.
+
+```powershell
+Get-Content logs/api-monitor.log -Tail 30
+Get-Content reports/api-monitor-results.json
 ```
+
+Звіт записується через тимчасовий файл та заміну попереднього. `logs/`, `reports/` і Python-кеші не потрапляють у Git.
+
+## Автоматичні тести
+
+**57 автономних тестів** охоплюють конфігурацію, числові межі та некоректні значення, URL, JSON, класифікацію збоїв, retry/recovery, HTTP-коди, часові пороги, журнал, звіт, коди виходу, Discord-повідомлення й помилки доставки. Частина тестів використовує справжній HTTP-сервер на випадковому loopback-порту для timeout, slow response, JSON і статусів. Зовнішніх звернень до Discord у тестах немає.
+
+Ще **5 інтеграційних тестів** виконують read-only запити до реального Wishlist у Docker. Вони вмикаються явно. Без цієї змінної 57 тестів проходять, а 5 інтеграційних пропускаються.
+
+```powershell
+python -m unittest discover -s tests -v
+
+# Docker-проєкт має бути запущений:
+$env:WISHLIST_LIVE = "1"
+python -m unittest discover -s tests -v
+Remove-Item Env:WISHLIST_LIVE
+```
+
+Повний прогін 10 листопада 2026 року: **62/62 пройдено**. Початкові 8 тестів збережено без змін; додано окремі файли тестів.
 
 ## Коди виходу
 
 | Код | Значення |
 |---:|---|
 | `0` | усі цілі здорові |
-| `1` | знайдено хоча б одну проблемну ціль |
-| `2` | помилка конфігурації або неправильні значення параметрів |
-| `3` | не вдалося створити журнал або JSON-звіт |
+| `1` | є проблемна ціль |
+| `2` | помилка конфігурації або аргументів |
+| `3` | помилка створення журналу або запису звіту |
 
-Перевірити код у PowerShell:
+Код `1` сигналізує про стан цілей; факт доставки кожного сповіщення перевіряється в журналі. Для конфігурації з неіснуючим файлом повертається зрозуміле повідомлення без traceback.
 
-```powershell
-python api_monitor.py
-$LASTEXITCODE
-```
+## Відхилене з'єднання та тайм-аут
 
-## Автоматичні тести
+**Connection refused** — вузол явно відхиляє TCP-з'єднання: сервіс не слухає потрібний порт або firewall повернув відмову. Перевіряються процес, порт і Docker port mapping.
 
-Тести не звертаються до зовнішньої мережі. Вони перевіряють класифікацію DNS, відхиленого з'єднання, тайм-ауту, сертифіката, несподіваного HTTP-коду, повільної відповіді та наявність лише однієї повторної спроби.
-
-```powershell
-cd lab-03
-python -m unittest discover -s tests -v
-```
-
-## Відхилене з'єднання і тайм-аут
-
-**З'єднання відхилено** означає, що клієнт дістався до потрібного вузла, але операційна система одразу відповіла: на цьому порту немає процесу, який приймає з'єднання. Під час інциденту спочатку перевіряють, чи запущений сервіс, чи слухає правильний порт і чи правильно налаштоване перенаправлення порту.
-
-**Тайм-аут** означає, що за відведений час не надійшло ні успішної відповіді, ні явної відмови. Пакети можуть блокуватися firewall, губитися в мережі або сервіс може зависнути. Тому перевіряють мережевий маршрут, правила firewall, навантаження та журнали завислого сервісу.
-
-Це різні сигнали: при відхиленому з'єднанні вузол відповідає швидко й проблема зазвичай знаходиться біля процесу або порту; при тайм-ауті місце втрати відповіді невідоме, тому потрібна мережна діагностика і перевірка стану сервісу.
+**Timeout** — операція не завершується у відведений час: можливі втрата пакетів, блокування firewall, проблеми маршруту чи зависання сервісу. Перевіряються мережевий шлях, навантаження й журнали. Явна відмова локалізує пошук біля сервісу/порту; відсутність відповіді потребує ширшої діагностики.
